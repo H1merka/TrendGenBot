@@ -1,12 +1,12 @@
 # bot.py
-from vkbottle.bot import Bot, Message
+from vkbottle.bot import Message
 from vkbottle import Keyboard, Text, KeyboardButtonColor
-from vk_utils import get_group_posts
+from vk_utils import get_group_posts, sorting_posts
 from postanalyzer import PostAnalyzer
-from config import token
+from bot_instance import bot
+import asyncio
+from datetime import datetime, timedelta
 
-
-bot = Bot(token=token)
 
 # Основное меню
 def main_keyboard():
@@ -14,8 +14,12 @@ def main_keyboard():
         Keyboard(inline=False)
         .add(Text("📊 Анализ сообщества", payload={"cmd": "analyze"}), color=KeyboardButtonColor.PRIMARY)
         .add_row()
+        .add(Text("📅 За неделю", payload={"cmd": "analyze_week"}), color=KeyboardButtonColor.SECONDARY)
+        .add(Text("🗓️ За месяц", payload={"cmd": "analyze_month"}), color=KeyboardButtonColor.SECONDARY)
+        .add_row()
         .add(Text("ℹ️ Помощь", payload={"cmd": "help"}), color=KeyboardButtonColor.SECONDARY)
     )
+
 
 @bot.on.message(text="/start")
 async def start_handler(message: Message):
@@ -25,6 +29,7 @@ async def start_handler(message: Message):
         keyboard=main_keyboard()
     )
 
+
 @bot.on.message(payload={"cmd": "help"})
 async def help_handler(message: Message):
     await message.answer(
@@ -33,11 +38,23 @@ async def help_handler(message: Message):
         "Пример: `vk`, `public123456`, `my_group_name`"
     )
 
+
 @bot.on.message(payload={"cmd": "analyze"})
 async def ask_for_group_id(message: Message):
     await message.answer("✍️ Введите ID или короткое имя вашего сообщества:")
 
-# Обработка текста как group_id
+
+@bot.on.message(payload={"cmd": "analyze_week"})
+async def ask_for_group_week(message: Message):
+    await message.answer("📅 Введите ID или короткое имя сообщества для анализа за *неделю*:")
+
+
+@bot.on.message(payload={"cmd": "analyze_month"})
+async def ask_for_group_month(message: Message):
+    await message.answer("🗓️ Введите ID или короткое имя сообщества для анализа за *месяц*:")
+
+
+# Обработка текстовых сообщений
 @bot.on.message()
 async def analyze_handler(message: Message):
     group_id = message.text.strip()
@@ -46,14 +63,30 @@ async def analyze_handler(message: Message):
 
     await message.answer(f"🔍 Получаю посты сообщества `{group_id}`...")
 
-    posts = get_group_posts(group_id)
+    posts = await get_group_posts(group_id)
     if not posts:
         await message.answer("❌ Не удалось получить посты. Проверьте правильность ID или доступ.")
         return
 
-    await message.answer(f"✅ Получено {len(posts)} постов. Анализирую...")
+    # Определяем тип анализа на основе предыдущей команды пользователя (через last payload)
+    last_payload = message.payload or {}
+    date_from = None
+    period = "всё время"
+
+    if "analyze_week" in last_payload.values():
+        date_from = datetime.now() - timedelta(days=7)
+        period = "последнюю неделю"
+    elif "analyze_month" in last_payload.values():
+        date_from = datetime.now() - timedelta(days=30)
+        period = "последний месяц"
+
+    await message.answer(f"✅ Получено {len(posts)} постов. Анализирую за {period}...")
+
+    top_posts = await sorting_posts(posts, date_from=date_from)
     analyzer = PostAnalyzer()
-    recommendations = analyzer.analyze_posts(posts)
+    recommendations = await asyncio.to_thread(analyzer.analyze_posts, top_posts)
+
     await message.answer("📊 Результаты анализа:\n\n" + recommendations, keyboard=main_keyboard())
+
 
 bot.run_forever()

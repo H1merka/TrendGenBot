@@ -2,6 +2,7 @@ from transformers import AutoModel, AutoTokenizer
 import torch
 from torchvision import transforms as T
 from torchvision.transforms.functional import InterpolationMode
+from PIL import Image
 from config import MODEL_NAME, IMAGENET_MEAN, IMAGENET_STD
 
 
@@ -44,7 +45,7 @@ class PostAnalyzer:
         tensor = self.transform(image).unsqueeze(0)
         return tensor.to(dtype=self.torch_dtype, device=self.model.device)
 
-    def analyze_posts(self, posts: list[tuple[Image.Image, str]]) -> list[str]:
+    def analyze_posts(self, posts: list[tuple[Image.Image, str]]) -> str:
         """
         :param posts: список кортежей (изображение, дополнительный текст)
         :return: список строк с ответами модели
@@ -67,4 +68,6 @@ class PostAnalyzer:
             )
             responses.append(response)
 
-        return responses
+        result = "\n".join(responses)
+
+        return result
