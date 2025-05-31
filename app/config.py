@@ -11,5 +11,6 @@ IMAGENET_STD = (0.229, 0.224, 0.225)
 # AI-agent
 MODEL_NAME = "OpenGVLab/InternVL2_5-4B"
 
-# API token from environment
-TOKEN = os.getenv("BOT_API_TOKEN")
+VK_CLIENT_ID = os.getenv("CLIENT_ID")
+
+TOKEN = os.getenv("BOT_TOKEN")

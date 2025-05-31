@@ -1,18 +1,36 @@
 from PIL import Image
 import aiohttp
 from io import BytesIO
-from bot_instance import bot
 from datetime import datetime
 
 
-async def get_group_posts(group_id: str, count: int = 30):
-    try:
-        # owner_id для групп должен быть отрицательным числом
-        response = await bot.api.wall.get(owner_id=-int(group_id), count=count)
-        return response.items
-    except Exception as e:
-        print("Ошибка VK API:", e)
-        return []
+def normalize_group_id(group_id: str) -> str:
+    """
+    Удаляет префиксы типа public, club и возвращает числовой ID без лишнего
+    """
+    if group_id.startswith("public"):
+        return group_id.replace("public", "", 1)
+    if group_id.startswith("club"):
+        return group_id.replace("club", "", 1)
+    return group_id
+
+
+async def get_group_posts(group_id: str, access_token: str, count: int = 100):
+    group_id = normalize_group_id(group_id)
+    url = "https://api.vk.com/method/wall.get"
+    params = {
+        "owner_id": f"-{group_id}",
+        "count": count,
+        "access_token": access_token,
+        "v": "5.131"
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params) as response:
+            data = await response.json()
+            if "error" in data:
+                error_msg = data["error"].get("error_msg", "Неизвестная ошибка")
+                return {"error": error_msg}
+            return data.get("response", {}).get("items", [])
 
 
 async def sorting_posts(posts, date_from=None):
