@@ -1,40 +1,20 @@
 from vkbottle.bot import Message
-from vkbottle import Keyboard, Text, KeyboardButtonColor
 from vk_utils import get_group_posts, sorting_posts
 from postanalyzer import PostAnalyzer
 import asyncio
 from datetime import datetime, timedelta
-from config import AUTH_URL
-from bot_instance import bot
+from config import AUTH_URL, USER_STATES
+from main_obj_init import bot, main_keyboard
 import re
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 
 
-# user_id: { "token": str, "period": str }
-user_states: Dict[int, Dict[str, str]] = {}
-
-
-# Keyboard for chat
-def main_keyboard() -> Keyboard:
-    return (
-        Keyboard(inline=False)
-        .add(Text("Авторизация", payload={"cmd": "auth"}), color=KeyboardButtonColor.POSITIVE)
-        .row()
-        .add(Text("Анализ всех постов", payload={"cmd": "analyze"}), color=KeyboardButtonColor.PRIMARY)
-        .row()
-        .add(Text("Анализ постов за неделю", payload={"cmd": "analyze_week"}), color=KeyboardButtonColor.PRIMARY)
-        .add(Text("Анализ постов за месяц", payload={"cmd": "analyze_month"}), color=KeyboardButtonColor.PRIMARY)
-        .row()
-        .add(Text("Помощь", payload={"cmd": "help"}), color=KeyboardButtonColor.SECONDARY)
-    )
-
-
-@bot.on.message(text="/start")
+@bot.on.message(text="/start", payload={"command": "start"})
 async def start_handler(message: Message) -> None:
     await message.answer(
         "Привет! Я чат-бот для составления рекомендаций по контент-плану сообществ\n\n"
         "Выберите действие:",
-        keyboard=main_keyboard()
+        keyboard=main_keyboard
     )
 
 
@@ -47,7 +27,7 @@ async def help_handler(message: Message) -> None:
         "После перехода по ссылке скопируйте URL из адресной строки и отправьте мне.\n\n"
         "После этого нажмите 'Анализ сообщества' и введите ID или короткое имя сообщества.\n\n"
         "Пример ID: `vk`, `public123456`, `my_group_name`",
-        keyboard=main_keyboard()
+        keyboard=main_keyboard
     )
 
 
@@ -63,24 +43,24 @@ async def auth_handler(message: Message) -> None:
 @bot.on.message(payload={"cmd": "analyze"})
 async def ask_for_group_all(message: Message) -> None:
     user_id = message.from_id
-    user_states[user_id] = user_states.get(user_id, {})
-    user_states[user_id]["period"] = "all"
+    USER_STATES[user_id] = USER_STATES.get(user_id, {})
+    USER_STATES[user_id]["period"] = "all"
     await message.answer("Введите ID или короткое имя вашего сообщества:")
 
 
 @bot.on.message(payload={"cmd": "analyze_week"})
 async def ask_for_group_week(message: Message) -> None:
     user_id = message.from_id
-    user_states[user_id] = user_states.get(user_id, {})
-    user_states[user_id]["period"] = "week"
+    USER_STATES[user_id] = USER_STATES.get(user_id, {})
+    USER_STATES[user_id]["period"] = "week"
     await message.answer("Введите ID или короткое имя сообщества для анализа за неделю:")
 
 
 @bot.on.message(payload={"cmd": "analyze_month"})
 async def ask_for_group_month(message: Message) -> None:
     user_id = message.from_id
-    user_states[user_id] = user_states.get(user_id, {})
-    user_states[user_id]["period"] = "month"
+    USER_STATES[user_id] = USER_STATES.get(user_id, {})
+    USER_STATES[user_id]["period"] = "month"
     await message.answer("Введите ID или короткое имя сообщества для анализа за месяц:")
 
 
@@ -95,21 +75,21 @@ async def message_handler(message: Message) -> None:
 
     # If user sent a token, save it.
     if (token.startswith("vk1.") or token.startswith("e") or token.startswith("2")) and len(token) > 50:
-        user_states[user_id] = user_states.get(user_id, {})
-        user_states[user_id]["token"] = token
+        USER_STATES[user_id] = USER_STATES.get(user_id, {})
+        USER_STATES[user_id]["token"] = token
         await message.answer(
             "Токен сохранён! Теперь выберите 'Анализ сообщества' "
             "и введите ID или короткое имя сообщества.",
-            keyboard=main_keyboard()
+            keyboard=main_keyboard
         )
         return
 
     # If there is no token, ask for authorization
-    state = user_states.get(user_id)
+    state = USER_STATES.get(user_id)
     if not state or "token" not in state:
         await message.answer(
             "Сначала авторизуйтесь, отправив access_token.", 
-            keyboard=main_keyboard()
+            keyboard=main_keyboard
         )
         return
 
@@ -120,13 +100,13 @@ async def message_handler(message: Message) -> None:
     posts: Any = await get_group_posts(text, access_token=state["token"])
 
     if isinstance(posts, dict) and "error" in posts:
-        await message.answer(f"VK API вернул ошибку: {posts['error']}", keyboard=main_keyboard())
+        await message.answer(f"VK API вернул ошибку: {posts['error']}", keyboard=main_keyboard)
         return
     if not posts:
         await message.answer(
             "Не удалось получить посты. "
             "Проверьте правильность ID или доступ.", 
-            keyboard=main_keyboard()
+            keyboard=main_keyboard
         )
         return
 
@@ -142,7 +122,8 @@ async def message_handler(message: Message) -> None:
         period_text = "всё время"
 
     await message.answer(
-        f"Получено {len(posts)} постов. Анализирую за {period_text}..."
+        f"Получено {len(posts)} постов. Анализирую за {period_text}. "
+        "Ваш запрос будет обработан в течение 5 минут, ожидайте."
     )
     top_posts = await sorting_posts(posts, date_from=date_from)
     analyzer = PostAnalyzer()
@@ -155,7 +136,7 @@ async def message_handler(message: Message) -> None:
 
     await message.answer(
         text,
-        keyboard=main_keyboard()
+        keyboard=main_keyboard
     )
 
 # Launching bot

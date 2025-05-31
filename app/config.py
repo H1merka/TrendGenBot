@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from typing import Dict
 
 
 load_dotenv()
@@ -27,3 +28,6 @@ AUTH_URL: str = (
         "&response_type=token"
         "&v=5.131"
     )
+
+# user_id: { "token": str, "period": str }
+USER_STATES: Dict[int, Dict[str, str]] = {}
