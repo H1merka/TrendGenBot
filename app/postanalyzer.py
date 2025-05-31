@@ -12,7 +12,7 @@ class PostAnalyzer:
         model_name: str = MODEL_NAME,
         image_size: int = 448,
         max_new_tokens: int = 128,
-        torch_dtype=torch.bfloat16,
+        torch_dtype=torch.float16,
     ):
         self.image_size = image_size
         self.torch_dtype = torch_dtype
@@ -26,10 +26,9 @@ class PostAnalyzer:
         # Загрузка модели
         self.model = AutoModel.from_pretrained(
             model_name,
-            device_map="auto",
+            device_map={"": "cpu"},
             torch_dtype=torch_dtype,
             low_cpu_mem_usage=True,
-            load_in_4bit=True,
             trust_remote_code=True
         ).eval()
 
@@ -58,9 +57,8 @@ class PostAnalyzer:
 
             question = (
                 "<image>\n"
-                "Пожалуйста, опиши визуальное содержание изображения, "
-                "и предоставь короткий текст, который связывает изображение с "
-                f"следующим текстом: '{additional_text}'."
+                "Определи тему, объединяющую визуальное содержание изображения " 
+                f"и следующего текста: '{additional_text}'."
             )
 
             response = self.model.chat(
