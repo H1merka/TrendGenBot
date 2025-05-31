@@ -1,22 +1,51 @@
+from typing import List, Optional, Tuple, Union
 from PIL import Image
 import aiohttp
 from io import BytesIO
 from datetime import datetime
 
 
-def normalize_group_id(group_id: str) -> str:
+async def resolve_group_id(group_input: str, access_token: str) -> str:
     """
-    Удаляет префиксы типа public, club и возвращает числовой ID без лишнего
+    Universal definition of numeric group_id
     """
-    if group_id.startswith("public"):
-        return group_id.replace("public", "", 1)
-    if group_id.startswith("club"):
-        return group_id.replace("club", "", 1)
-    return group_id
+    if group_input.isdigit():
+        return group_input
+
+    # Deleting 'public' or 'club' prefixes
+    if group_input.startswith("public") or group_input.startswith("club"):
+        possible_id = group_input.lstrip("club").lstrip("public")
+        if possible_id.isdigit():
+            return possible_id
+
+    # Using groups.getById to get numeric ID
+    url = "https://api.vk.com/method/groups.getById"
+    params = {
+        "group_id": group_input,
+        "access_token": access_token,
+        "v": "5.131"
+    }
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, params=params) as response:
+            data = await response.json()
+            if "error" in data:
+                raise ValueError(f"Ошибка VK API: {data['error'].get('error_msg', 'неизвестная ошибка')}")
+            return str(data["response"][0]["id"])
 
 
-async def get_group_posts(group_id: str, access_token: str, count: int = 100):
-    group_id = normalize_group_id(group_id)
+async def get_group_posts(group_id: str, access_token: str, count: int = 100) -> Union[List[dict], dict]:
+    """
+    Fetches posts from a VK group wall.
+
+    This function resolves various forms of VK group identifiers (numeric ID, 
+    short name, or prefixes like 'club'/'public') into a numeric group ID 
+    and retrieves the latest posts from the group's wall using the VK API.
+    """
+    try:
+        group_id = await resolve_group_id(group_id, access_token)
+    except ValueError as e:
+        return {"error": str(e)}
+    
     url = "https://api.vk.com/method/wall.get"
     params = {
         "owner_id": f"-{group_id}",
@@ -33,29 +62,24 @@ async def get_group_posts(group_id: str, access_token: str, count: int = 100):
             return data.get("response", {}).get("items", [])
 
 
-async def sorting_posts(posts, date_from=None):
+async def sorting_posts(posts: List[dict], date_from: Optional[datetime] = None) -> List[Tuple[Image.Image, str]]:
     """
-    Сортирует посты по количеству лайков и возвращает top_n с изображениями и текстом.
-    
-    :param posts: список постов (dict)
-    :param date_from: минимальная дата публикации (если None — берутся все посты)
-    :param top_n: сколько постов вернуть
-    :return: список (image, text)
+    Sorting posts by the number of likes and returns top 3 with images and text.
     """
-    candidates = []
+    candidates: List[Tuple[int, str, str]] = []
 
     for post in posts:
-        # Фильтрация по дате, если указана
+        # Filtering by date, if specified
         post_date = datetime.fromtimestamp(post.get("date", 0))
         if date_from and post_date < date_from:
             continue
 
-        text = post.get("text", "")
-        attachments = post.get("attachments", [])
-        like_count = post.get("likes", {}).get("count", 0)
+        text: str = post.get("text", "")
+        attachments: List[dict] = post.get("attachments", [])
+        like_count: int = post.get("likes", {}).get("count", 0)
 
-        # Ищем первую фотографию
-        image_url = None
+        # Looking for the first image
+        image_url: Optional[str] = None
         for att in attachments:
             if att.get("type") == "photo":
                 sizes = att["photo"].get("sizes", [])
@@ -67,11 +91,10 @@ async def sorting_posts(posts, date_from=None):
         if image_url:
             candidates.append((like_count, text, image_url))
 
-    # Сортировка по убыванию лайков
     candidates.sort(reverse=True, key=lambda x: x[0])
     top_candidates = candidates[:3]
 
-    result = []
+    result: List[Tuple[Image.Image, str]] = []
     async with aiohttp.ClientSession() as session:
         for _, text, url in top_candidates:
             try:

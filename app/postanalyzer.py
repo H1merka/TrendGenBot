@@ -18,12 +18,12 @@ class PostAnalyzer:
         self.torch_dtype = torch_dtype
         self.max_new_tokens = max_new_tokens
 
-        # Загрузка токенизатора
+        # Tokenizer uploading
         self.tokenizer = AutoTokenizer.from_pretrained(
             model_name, trust_remote_code=True
         )
 
-        # Загрузка модели
+        # Model uploading
         self.model = AutoModel.from_pretrained(
             model_name,
             device_map={"": "cpu"},
@@ -32,7 +32,7 @@ class PostAnalyzer:
             trust_remote_code=True
         ).eval()
 
-        # Подготовка пайплайна трансформации изображений
+        # Preparing image transformation pipeline
         self.transform = T.Compose([
             T.Resize((image_size, image_size), interpolation=InterpolationMode.BICUBIC),
             T.ToTensor(),
@@ -40,14 +40,15 @@ class PostAnalyzer:
         ])
 
     def preprocess_image(self, image: Image.Image) -> torch.Tensor:
+        """Image preprocessing function"""
         image = image.convert('RGB')
         tensor = self.transform(image).unsqueeze(0)
         return tensor.to(dtype=self.torch_dtype, device=self.model.device)
 
     def analyze_posts(self, posts: list[tuple[Image.Image, str]]) -> str:
         """
-        :param posts: список кортежей (изображение, дополнительный текст)
-        :return: список строк с ответами модели
+        :param posts: list of tuples(image, additional text)
+        :return: string with model answer
         """
         generation_config = dict(max_new_tokens=self.max_new_tokens, do_sample=False)
         responses = []
@@ -57,7 +58,7 @@ class PostAnalyzer:
 
             question = (
                 "<image>\n"
-                "Определи тему, объединяющую визуальное содержание изображения " 
+                "Определи тему, объединяющую визуальное содержание изображения "
                 f"и следующего текста: '{additional_text}'."
             )
 
