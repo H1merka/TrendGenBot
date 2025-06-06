@@ -1,11 +1,10 @@
 from vkbottle.bot import Message
-from vk_utils import get_group_posts, sorting_posts
+from utils import get_group_posts, sorting_posts
 from postanalyzer import PostAnalyzer
 import asyncio
 from datetime import datetime, timedelta
-from config import AUTH_URL, USER_STATES
-from main_obj_init import bot, main_keyboard
-import re
+from config import USER_STATES
+from config import bot, main_keyboard, lock
 from typing import Any, Optional
 
 
@@ -31,36 +30,30 @@ async def help_handler(message: Message) -> None:
     )
 
 
-@bot.on.message(payload={"cmd": "auth"})
-async def auth_handler(message: Message) -> None:
-    await message.answer(
-        "Для работы мне нужно получить доступ к вашему сообществу.\n\n"
-        "Перейдите по ссылке, скопируйте URL из адресной строки и отправьте мне:\n\n"
-        f"{AUTH_URL}"
-    )
-
-
 @bot.on.message(payload={"cmd": "analyze"})
 async def ask_for_group_all(message: Message) -> None:
     user_id = message.from_id
-    USER_STATES[user_id] = USER_STATES.get(user_id, {})
-    USER_STATES[user_id]["period"] = "all"
+    with lock:
+        USER_STATES[user_id] = USER_STATES.get(user_id, {})
+        USER_STATES[user_id]["period"] = "all"
     await message.answer("Введите ID или короткое имя вашего сообщества:")
 
 
 @bot.on.message(payload={"cmd": "analyze_week"})
 async def ask_for_group_week(message: Message) -> None:
     user_id = message.from_id
-    USER_STATES[user_id] = USER_STATES.get(user_id, {})
-    USER_STATES[user_id]["period"] = "week"
+    with lock:
+        USER_STATES[user_id] = USER_STATES.get(user_id, {})
+        USER_STATES[user_id]["period"] = "week"
     await message.answer("Введите ID или короткое имя сообщества для анализа за неделю:")
 
 
 @bot.on.message(payload={"cmd": "analyze_month"})
 async def ask_for_group_month(message: Message) -> None:
     user_id = message.from_id
-    USER_STATES[user_id] = USER_STATES.get(user_id, {})
-    USER_STATES[user_id]["period"] = "month"
+    with lock:
+        USER_STATES[user_id] = USER_STATES.get(user_id, {})
+        USER_STATES[user_id]["period"] = "month"
     await message.answer("Введите ID или короткое имя сообщества для анализа за месяц:")
 
 
@@ -69,26 +62,17 @@ async def message_handler(message: Message) -> None:
     user_id = message.from_id
     text = message.text.strip()
 
-    # Attempt to recognize access_token
-    match = re.search(r'access_token=([\w\d\._\-]+)', text)
-    token = match.group(1) if match else text
-
-    # If user sent a token, save it.
-    if (token.startswith("vk1.") or token.startswith("e") or token.startswith("2")) and len(token) > 50:
-        USER_STATES[user_id] = USER_STATES.get(user_id, {})
-        USER_STATES[user_id]["token"] = token
-        await message.answer(
-            "Токен сохранён! Теперь выберите 'Анализ сообщества' "
-            "и введите ID или короткое имя сообщества.",
-            keyboard=main_keyboard
-        )
-        return
+    with lock:
+        state = USER_STATES.get(user_id, {})
+        token = state.get("token")
 
     # If there is no token, ask for authorization
-    state = USER_STATES.get(user_id)
-    if not state or "token" not in state:
+    if not token or not (
+        (token.startswith("vk1.") or token.startswith("e") or token.startswith("2")) and
+        len(token) > 50
+    ):
         await message.answer(
-            "Сначала авторизуйтесь, отправив access_token.", 
+            "Токен отсутствует, авторизуйтесь.",
             keyboard=main_keyboard
         )
         return
@@ -138,7 +122,3 @@ async def message_handler(message: Message) -> None:
         text,
         keyboard=main_keyboard
     )
-
-# Launching bot
-if __name__ == "__main__":
-    bot.run_forever()

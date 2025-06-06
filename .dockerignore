@@ -1,0 +1,15 @@
+# Ignore cache, artifacts, virtual environments, and confidential files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+.env
+.env.*
+**/.env
+*.log
+.vscode/
+.git/
+.idea/
+.cache/
+*.tar.gz

@@ -2,13 +2,13 @@ from typing import List, Optional, Tuple, Union
 from PIL import Image
 import aiohttp
 from io import BytesIO
+import uvicorn
 from datetime import datetime
+from config import app
 
 
 async def resolve_group_id(group_input: str, access_token: str) -> str:
-    """
-    Universal definition of numeric group_id
-    """
+    """Universal definition of numeric group_id"""
     if group_input.isdigit():
         return group_input
 
@@ -37,8 +37,8 @@ async def get_group_posts(group_id: str, access_token: str, count: int = 100) ->
     """
     Fetches posts from a VK group wall.
 
-    This function resolves various forms of VK group identifiers (numeric ID, 
-    short name, or prefixes like 'club'/'public') into a numeric group ID 
+    This function resolves various forms of VK group identifiers (numeric ID,
+    short name, or prefixes like 'club'/'public') into a numeric group ID
     and retrieves the latest posts from the group's wall using the VK API.
     """
     try:
@@ -62,23 +62,29 @@ async def get_group_posts(group_id: str, access_token: str, count: int = 100) ->
             return data.get("response", {}).get("items", [])
 
 
-async def sorting_posts(posts: List[dict], date_from: Optional[datetime] = None) -> List[Tuple[Image.Image, str]]:
+async def sorting_posts(posts: List[dict], date_from: Optional[datetime] = None) -> List[Tuple[Optional[Image.Image], Optional[str]]]:
     """
-    Sorting posts by the number of likes and returns top 3 with images and text.
+    Sorting posts by the number of likes
+    and returns top 3 with images and text.
     """
-    candidates: List[Tuple[int, str, str]] = []
+    candidates: List[Tuple[int, Optional[str], Optional[str]]] = []
 
     for post in posts:
-        # Filtering by date, if specified
+        # Filtering by date
         post_date = datetime.fromtimestamp(post.get("date", 0))
         if date_from and post_date < date_from:
             continue
 
-        text: str = post.get("text", "")
+        text: Optional[str] = post.get("text", None)
+        if text is not None:
+            text = text.strip()
+        if text == "":
+            text = None
+
         attachments: List[dict] = post.get("attachments", [])
         like_count: int = post.get("likes", {}).get("count", 0)
 
-        # Looking for the first image
+        # Searching for first image
         image_url: Optional[str] = None
         for att in attachments:
             if att.get("type") == "photo":
@@ -88,24 +94,37 @@ async def sorting_posts(posts: List[dict], date_from: Optional[datetime] = None)
                     image_url = largest["url"]
                     break
 
-        if image_url:
-            candidates.append((like_count, text, image_url))
+        # Ignoring posts without text and without an image at the same time
+        if image_url is None and text is None:
+            continue
 
+        candidates.append((like_count, text, image_url))
+
+    # Sorting by likes in descending
     candidates.sort(reverse=True, key=lambda x: x[0])
     top_candidates = candidates[:3]
 
-    result: List[Tuple[Image.Image, str]] = []
+    result: List[Tuple[Optional[Image.Image], Optional[str]]] = []
+
     async with aiohttp.ClientSession() as session:
         for _, text, url in top_candidates:
-            try:
-                async with session.get(url) as response:
-                    if response.status == 200:
-                        img_bytes = await response.read()
-                        img = Image.open(BytesIO(img_bytes))
-                        result.append((img, text))
-                    else:
-                        print(f"⚠️ Не удалось загрузить изображение: {url}")
-            except Exception as e:
-                print(f"❌ Ошибка при загрузке изображения: {e}")
+            img: Optional[Image.Image] = None
+            if url:
+                try:
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            img_bytes = await response.read()
+                            img = Image.open(BytesIO(img_bytes))
+                        else:
+                            print(f"⚠️ Не удалось загрузить изображение: {url}")
+                except Exception as e:
+                    print(f"❌ Ошибка при загрузке изображения: {e}")
+
+            result.append((img, text))
 
     return result
+
+
+def run_api():
+    """Synchronous launch of FastAPI server"""
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")

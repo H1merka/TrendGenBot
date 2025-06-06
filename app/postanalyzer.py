@@ -45,22 +45,43 @@ class PostAnalyzer:
         tensor = self.transform(image).unsqueeze(0)
         return tensor.to(dtype=self.torch_dtype, device=self.model.device)
 
-    def analyze_posts(self, posts: list[tuple[Image.Image, str]]) -> str:
-        """
-        :param posts: list of tuples(image, additional text)
-        :return: string with model answer
-        """
+    def analyze_posts(self, posts: list[tuple[Image.Image | None, str | None]]) -> str:
         generation_config = dict(max_new_tokens=self.max_new_tokens, do_sample=False)
         responses = []
 
         for image, additional_text in posts:
-            pixel_values = self.preprocess_image(image)
+            # Checking the availability of data
+            if image is None and (additional_text is None or additional_text.strip() == ""):
+                continue
 
-            question = (
-                "<image>\n"
-                "Определи тему, объединяющую визуальное содержание изображения "
-                f"и следующего текста: '{additional_text}'."
-            )
+            pixel_values = None
+            question_parts = []
+
+            if image is not None:
+                pixel_values = self.preprocess_image(image)
+                question_parts.append("<image>")
+
+            if additional_text is not None and additional_text.strip() != "":
+                question_parts.append(f"Текст: '{additional_text}'")
+
+            # Forming a question depending on the availability of data
+            if len(question_parts) == 2:
+                question = (
+                    f"{question_parts[0]}\n"
+                    "Определи тему, объединяющую визуальное "
+                    "содержание изображения и следующий текст: "
+                    f"{question_parts[1]}"
+                )
+            elif len(question_parts) == 1:
+                if pixel_values is not None:
+                    question = (
+                        f"{question_parts[0]}\n"
+                        "Определи тему визуального содержания изображения."
+                    )
+                else:
+                    question = (
+                        f"Определи тему следующего текста: {question_parts[0]}"
+                    )
 
             response = self.model.chat(
                 self.tokenizer, pixel_values, question, generation_config
