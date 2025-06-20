@@ -123,7 +123,7 @@ async def message_handler(message: Message) -> None:
 
     await message.answer(
         f"Получено {len(posts)} постов. Анализирую за {period_text}. "
-        "Ваш запрос будет обработан в течение 5 минут, ожидайте."
+        "Ваш запрос будет обработан в течение 5-10 минут, ожидайте."
     )
     top_posts = await sorting_posts(posts, date_from=date_from)
     analyzer = PostAnalyzer()

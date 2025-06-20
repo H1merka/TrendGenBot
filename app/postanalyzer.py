@@ -58,7 +58,7 @@ class PostAnalyzer:
 
             question = (
                 "<image>\n"
-                "Определи тему, объединяющую визуальное содержание изображения "
+                "Коротко определи тему, объединяющую визуальное содержание изображения "
                 f"и следующего текста: '{additional_text}'."
             )
 
@@ -67,6 +67,6 @@ class PostAnalyzer:
             )
             responses.append(response)
 
-        result = "\n".join(responses)
+        result = "\n\n".join(responses)
 
         return result
