@@ -64,7 +64,7 @@ async def message_handler(message: Message) -> None:
 
     with lock:
         state = USER_STATES.get(user_id, {})
-        token = state.get("token")
+        token = state.get("access_token")
 
     # If there is no token, ask for authorization
     if not token or not (

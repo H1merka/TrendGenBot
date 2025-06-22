@@ -1,11 +1,10 @@
-import os
+import os, threading, secrets
 from dotenv import load_dotenv
 from typing import Dict
 from vkbottle.bot import Bot
 from vkbottle import Keyboard, Text, KeyboardButtonColor, OpenLink
 from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
-import threading
 
 
 load_dotenv()
@@ -24,21 +23,25 @@ VK_CLIENT_ID: str | None = os.getenv("CLIENT_ID")
 TOKEN: str | None = os.getenv("BOT_TOKEN")
 
 # OAuth2 redirect URI
-REDIRECT_URI: str = "https://6a21-169-150-209-163.ngrok-free.app/callback"
+REDIRECT_URI: str = "http://localhost:8000/callback"
 
-# VK application secret key
-SECRET: str | None = os.getenv("CLIENT_SECRET")
+CODE_VERIFIER = "GRZzPY9Gp5upJPPMgVdCxjXIpVEn7tUByoSooIoczuE"
 
-# Authentification URL for getting access to group
-AUTH_URL: str = (
-        "https://oauth.vk.com/authorize?"
-        f"client_id={VK_CLIENT_ID}"
-        "&display=page"
-        f"&redirect_uri={REDIRECT_URI}"
-        "&scope=groups,wall"
-        "&response_type=code"
-        "&v=5.131"
-    )
+CODE_CHALLENGE = "yUPdYtzXZg-iQ0a26YTKfFk-YoGm96aCzj4pT6x6rcQ"
+
+STATE = secrets.token_urlsafe(16)
+
+# AUTH URL — VK ID PKCE Flow
+AUTH_URL = (
+    f"https://id.vk.com/authorize?"
+    f"client_id={VK_CLIENT_ID}"
+    f"&redirect_uri={REDIRECT_URI}"
+    f"&response_type=code"
+    f"&scope=groups"
+    f"&code_challenge={CODE_CHALLENGE}"
+    f"&code_challenge_method=S256"
+    f"&state={STATE}"
+)
 
 # Blocking shared data for multithreading
 lock = threading.Lock()

@@ -1,38 +1,35 @@
-from fastapi import Request
+from fastapi import Request, HTTPException
+from fastapi.responses import HTMLResponse
 import httpx
-from config import SECRET, REDIRECT_URI, VK_CLIENT_ID, USER_STATES
+from config import REDIRECT_URI, VK_CLIENT_ID, USER_STATES, STATE, CODE_VERIFIER
 from config import app, templates, lock
 
 
-@app.get("/callback")
-async def callback(request: Request, code: str):
-    """Handles VK OAuth callback with authorization code"""
-    # Exchange the authorization code for an access token
+@app.get("/callback", response_class=HTMLResponse)
+async def callback(request: Request, code: str = None, state: str = None):
+    if state != STATE:
+        raise HTTPException(status_code=400, detail="Invalid state")
+    # Token exchange via VK ID PKCE Flow
     async with httpx.AsyncClient() as client:
-        token_response: httpx.Response = await client.get(
-            "https://oauth.vk.com/access_token",
-            params={
+        response = await client.post(
+            "https://api.vkid.vk.com/token",
+            data={
+                "grant_type": "authorization_code",
                 "client_id": VK_CLIENT_ID,
-                "client_secret": SECRET,
-                "redirect_uri": REDIRECT_URI,
                 "code": code,
-            },
+                "redirect_uri": REDIRECT_URI,
+                "code_verifier": CODE_VERIFIER
+            },  
+            headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
+    data = response.json()
+    if "error" in data:
+        return {"error": data.get("error_description", data["error"])}
 
-    # If VK did not return a 200 OK, return error
-    if token_response.status_code != 200:
-        return {"error": "Failed to get token"}
-
-    data: dict = token_response.json()
-    access_token: str | None = data.get("access_token")
-    user_id: int | None = data.get("user_id")
-
-    # Save token if both access_token and user_id are present
-    if access_token and user_id:
-        with lock:
-            USER_STATES[user_id] = {"token": access_token}
-        print(f"[+] Saved token for user {user_id}")
-        return templates.TemplateResponse("success.html", {"request": request, "user_id": user_id})
-
-    # Return error if token or user_id are missing
-    return {"error": "Missing token or user_id"}
+    with lock:
+        USER_STATES[request.client.host] = {
+            "access_token": data["access_token"],
+            "refresh_token": data.get("refresh_token"),
+            "id_token": data.get("id_token")
+        }
+    return templates.TemplateResponse("success.html", {"request": request, "user_id": request.client.host})

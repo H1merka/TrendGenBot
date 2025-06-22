@@ -127,4 +127,4 @@ async def sorting_posts(posts: List[dict], date_from: Optional[datetime] = None)
 
 def run_api():
     """Synchronous launch of FastAPI server"""
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+    uvicorn.run(app, host="localhost", port=8000, log_level="info")
