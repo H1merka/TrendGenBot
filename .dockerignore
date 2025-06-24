@@ -1,15 +1,56 @@
-# Ignore cache, artifacts, virtual environments, and confidential files
+# Python bytecode
 __pycache__/
-*.pyc
+*.py[cod]
 *.pyo
 *.pyd
-*.db
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables and secrets
 .env
 .env.*
-**/.env
+*.env
+
+# Logs, DBs, and caches
 *.log
-.vscode/
-.git/
-.idea/
+*.sqlite3
+*.db
 .cache/
+*.pt
+*.ckpt
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
 *.tar.gz
+*.whl
+
+# IDE/project files
+.vscode/
+.idea/
+*.iml
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker artifacts
+Dockerfile
+docker-compose.yml
+
+# Tests and docs (if not needed in prod)
+tests/
+docs/
+*.md
+
+# Templates (if not rendered at runtime)
+templates/

@@ -1,26 +1,43 @@
-# Official Python 3.11
-FROM python:3.11-slim
+# -------- Стадия 1: Сборка зависимостей --------
+FROM python:3.11-slim AS builder
 
-# Installing system dependencies for the build
+WORKDIR /app
+
+# Устанавливаем системные библиотеки, нужные для сборки
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
     gcc \
-    libffi-dev \
-    libpq-dev \
-    libssl-dev \
     libjpeg-dev \
     libxml2-dev \
     libxslt1-dev \
     git \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+COPY app/requirements.txt .
+
+# Устанавливаем зависимости во временную директорию
+RUN pip install --no-cache-dir --upgrade pip \
+ && pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# -------- Стадия 2: Финальный минимальный образ --------
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
-COPY requirements.txt .
+# Устанавливаем системные библиотеки для запуска (без компиляции)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libjpeg-dev \
+    libxml2 \
+    libxslt1.1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Installing dependencies without a cache for a smaller size
-RUN pip install --no-cache-dir -r requirements.txt
+# Копируем установленные пакеты с предыдущего слоя
+COPY --from=builder /install /usr/local
 
+# Копируем исходный код
 COPY app ./app
 
-CMD ["python", "app/bot.py"]
+# Команда запуска
+CMD ["python", "app/main.py"]

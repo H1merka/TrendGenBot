@@ -1,4 +1,4 @@
-import os, threading, secrets
+import os, threading, secrets, base64, hashlib
 from dotenv import load_dotenv
 from typing import Dict
 from vkbottle.bot import Bot
@@ -23,12 +23,19 @@ VK_CLIENT_ID: str | None = os.getenv("CLIENT_ID")
 TOKEN: str | None = os.getenv("BOT_TOKEN")
 
 # OAuth2 redirect URI
-REDIRECT_URI: str = "http://localhost:8000/callback"
+REDIRECT_URI: str = "https://trendgenbot.ru/callback"
 
-CODE_VERIFIER = "GRZzPY9Gp5upJPPMgVdCxjXIpVEn7tUByoSooIoczuE"
 
-CODE_CHALLENGE = "yUPdYtzXZg-iQ0a26YTKfFk-YoGm96aCzj4pT6x6rcQ"
+# PKCE code verifier/challenge generation
+def generate_code_pair():
+    verifier = base64.urlsafe_b64encode(os.urandom(40)).decode("utf-8").rstrip("=")
+    challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).decode("utf-8").rstrip("=")
+    return verifier, challenge
 
+
+CODE_VERIFIER, CODE_CHALLENGE = generate_code_pair()
 STATE = secrets.token_urlsafe(16)
 
 # AUTH URL — VK ID PKCE Flow
@@ -37,7 +44,7 @@ AUTH_URL = (
     f"client_id={VK_CLIENT_ID}"
     f"&redirect_uri={REDIRECT_URI}"
     f"&response_type=code"
-    f"&scope=groups"
+    f"&scope=openid+profile+groups"
     f"&code_challenge={CODE_CHALLENGE}"
     f"&code_challenge_method=S256"
     f"&state={STATE}"
