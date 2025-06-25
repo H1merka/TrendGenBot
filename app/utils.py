@@ -8,17 +8,29 @@ from config import app
 
 
 async def resolve_group_id(group_input: str, access_token: str) -> str:
-    """Universal definition of numeric group_id"""
+    """
+    Resolve various VK group ID formats to a numeric ID.
+
+    Args:
+        group_input (str): Group ID, short name, or prefix-based (e.g. 'public123').
+        access_token (str): VK user access token.
+
+    Returns:
+        str: Numeric group ID.
+
+    Raises:
+        ValueError: If VK API returns an error.
+    """
     if group_input.isdigit():
         return group_input
 
-    # Deleting 'public' or 'club' prefixes
+    # Remove 'public' or 'club' prefixes
     if group_input.startswith("public") or group_input.startswith("club"):
         possible_id = group_input.lstrip("club").lstrip("public")
         if possible_id.isdigit():
             return possible_id
 
-    # Using groups.getById to get numeric ID
+    # Try resolving via VK API
     url = "https://api.vk.com/method/groups.getById"
     params = {
         "group_id": group_input,
@@ -29,17 +41,21 @@ async def resolve_group_id(group_input: str, access_token: str) -> str:
         async with session.get(url, params=params) as response:
             data = await response.json()
             if "error" in data:
-                raise ValueError(f"Ошибка VK API: {data['error'].get('error_msg', 'неизвестная ошибка')}")
+                raise ValueError(f"VK API error: {data['error'].get('error_msg', 'unknown error')}")
             return str(data["response"][0]["id"])
 
 
 async def get_group_posts(group_id: str, access_token: str, count: int = 100) -> Union[List[dict], dict]:
     """
-    Fetches posts from a VK group wall.
+    Fetch the latest posts from a VK group's wall.
 
-    This function resolves various forms of VK group identifiers (numeric ID,
-    short name, or prefixes like 'club'/'public') into a numeric group ID
-    and retrieves the latest posts from the group's wall using the VK API.
+    Args:
+        group_id (str): Numeric group ID or short name.
+        access_token (str): VK user access token.
+        count (int): Number of posts to fetch (default 100).
+
+    Returns:
+        Union[List[dict], dict]: List of post dicts, or error dict if failed.
     """
     try:
         group_id = await resolve_group_id(group_id, access_token)
@@ -57,55 +73,68 @@ async def get_group_posts(group_id: str, access_token: str, count: int = 100) ->
         async with session.get(url, params=params) as response:
             data = await response.json()
             if "error" in data:
-                error_msg = data["error"].get("error_msg", "Неизвестная ошибка")
+                error_msg = data["error"].get("error_msg", "Unknown error")
                 return {"error": error_msg}
             return data.get("response", {}).get("items", [])
 
 
-async def sorting_posts(posts: List[dict], date_from: Optional[datetime] = None) -> List[Tuple[Optional[Image.Image], Optional[str]]]:
+async def sorting_posts(
+    posts: List[dict],
+    date_from: Optional[datetime] = None
+) -> List[Tuple[Optional[Image.Image], Optional[str]]]:
     """
-    Sorting posts by the number of likes
-    and returns top 3 with images and text.
+    Filters and sorts posts by number of likes and extracts top 3.
+
+    Args:
+        posts (List[dict]): List of VK post dictionaries.
+        date_from (Optional[datetime]): Only include posts after this date.
+
+    Returns:
+        List[Tuple[Optional[Image.Image], Optional[str]]]:
+            Top 3 posts as (image, text) pairs.
     """
     candidates: List[Tuple[int, Optional[str], Optional[str]]] = []
 
     for post in posts:
-        # Filtering by date
+        # Date filter
         post_date = datetime.fromtimestamp(post.get("date", 0))
         if date_from and post_date < date_from:
             continue
 
+        # Clean and extract text
         text: Optional[str] = post.get("text", None)
-        if text is not None:
+        if text:
             text = text.strip()
         if text == "":
             text = None
 
+        # Search for first image in attachments
         attachments: List[dict] = post.get("attachments", [])
         like_count: int = post.get("likes", {}).get("count", 0)
-
-        # Searching for first image
         image_url: Optional[str] = None
+
         for att in attachments:
             if att.get("type") == "photo":
                 sizes = att["photo"].get("sizes", [])
                 if sizes:
+                    # Pick the largest image by area
                     largest = max(sizes, key=lambda s: s["width"] * s["height"])
                     image_url = largest["url"]
                     break
 
-        # Ignoring posts without text and without an image at the same time
+        # Skip posts with neither image nor text
         if image_url is None and text is None:
             continue
 
         candidates.append((like_count, text, image_url))
 
-    # Sorting by likes in descending
+    # Sort by like count (descending) and take top 3
     candidates.sort(reverse=True, key=lambda x: x[0])
     top_candidates = candidates[:3]
 
     result: List[Tuple[Optional[Image.Image], Optional[str]]] = []
 
+    # Download images for top posts
     async with aiohttp.ClientSession() as session:
         for _, text, url in top_candidates:
             img: Optional[Image.Image] = None
@@ -116,15 +145,17 @@ async def sorting_posts(posts: List[dict], date_from: Optional[datetime] = None)
                             img_bytes = await response.read()
                             img = Image.open(BytesIO(img_bytes))
                         else:
-                            print(f"⚠️ Не удалось загрузить изображение: {url}")
+                            print(f"⚠️ Failed to download image: {url}")
                 except Exception as e:
-                    print(f"❌ Ошибка при загрузке изображения: {e}")
-
+                    print(f"❌ Image fetch error: {e}")
             result.append((img, text))
 
     return result
 
 
-def run_api():
-    """Synchronous launch of FastAPI server"""
+def run_api() -> None:
+    """
+    Launch FastAPI server using uvicorn.
+    This function is used as a thread target in main.py.
+    """
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

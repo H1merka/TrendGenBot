@@ -1,56 +1,27 @@
-# Python bytecode
+# Ignore Python bytecode and cache
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
 *.pyd
 
-# Virtual environments
-.venv/
-venv/
-env/
-ENV/
-
-# Environment variables and secrets
-.env
-.env.*
-*.env
-
-# Logs, DBs, and caches
+# Ignore log files
 *.log
+
+# Ignore local SQLite databases
 *.sqlite3
-*.db
-.cache/
-*.pt
-*.ckpt
 
-# Build artifacts
-build/
-dist/
-*.egg-info/
-*.tar.gz
-*.whl
+# Ignore environment variable files (sensitive data)
+*.env
+*.env.*
 
-# IDE/project files
-.vscode/
-.idea/
-*.iml
+# Ignore Git-related files (should not happen but safe to exclude)
+*.git
 
-# System files
-.DS_Store
-Thumbs.db
+# Ignore IDE/editor configuration files
+*.idea        # JetBrains IDEs (e.g. PyCharm)
+*.vscode      # Visual Studio Code
+*.DS_Store    # macOS file system metadata
+*.egg-info/   # Python package build metadata
 
-# Git
-.git/
-.gitignore
-
-# Docker artifacts
-Dockerfile
-docker-compose.yml
-
-# Tests and docs (if not needed in prod)
-tests/
-docs/
-*.md
-
-# Templates (if not rendered at runtime)
-templates/
+# Ignore backup of requirements file
+requirements.txt~

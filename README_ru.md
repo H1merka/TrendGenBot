@@ -16,6 +16,8 @@
 
 [Ключ доступа пользователя](https://dev.vk.com/ru/api/access-token/authcode-flow-user) и [ключ доступа сообщества](https://dev.vk.com/ru/api/access-token/community-token/in-community-settings) необходимы для корректной работы приложения
 
+Частично реализована VK ID авторизация с PKCE flow
+
 ## Лицензия
 
 Этот проект выпущен под лицензией MIT. В этом проекте используется предварительно обученная модель InternVL2_5-4B, которая лицензирована под MIT.

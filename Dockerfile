@@ -1,43 +1,36 @@
-# -------- Стадия 1: Сборка зависимостей --------
-FROM python:3.11-slim AS builder
+# Use an extended base image with minimal Debian system
+FROM python:3.11
 
-WORKDIR /app
-
-# Устанавливаем системные библиотеки, нужные для сборки
+# Install essential build tools and required system libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
+    build-essential \
+    git \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
     libjpeg-dev \
     libxml2-dev \
     libxslt1-dev \
-    git \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*  # Clean up to reduce image size
 
-COPY app/requirements.txt .
-
-# Устанавливаем зависимости во временную директорию
-RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir --prefix=/install -r requirements.txt
-
-# -------- Стадия 2: Финальный минимальный образ --------
-FROM python:3.11-slim
-
-ENV PYTHONUNBUFFERED=1
+# Set working directory inside container
 WORKDIR /app
 
-# Устанавливаем системные библиотеки для запуска (без компиляции)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libjpeg-dev \
-    libxml2 \
-    libxslt1.1 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Copy requirements file and install Python dependencies
+COPY app/requirements.txt .
 
-# Копируем установленные пакеты с предыдущего слоя
-COPY --from=builder /install /usr/local
+# Upgrade pip and install CPU-only version of PyTorch, then other requirements
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu \
+ && pip install --no-cache-dir -r requirements.txt
 
-# Копируем исходный код
-COPY app ./app
+# Copy the rest of the application source code into the container
+COPY app/ .
 
-# Команда запуска
-CMD ["python", "app/main.py"]
+# Set environment variable to disable Python output buffering (useful for logging)
+ENV PYTHONUNBUFFERED=1
+
+# Define default command to run the app
+CMD ["python", "main.py"]

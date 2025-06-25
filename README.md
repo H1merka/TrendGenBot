@@ -16,6 +16,8 @@ The chatbot uses [InternVL2_5-4B](https://huggingface.co/OpenGVLab/InternVL2_5-4
 
 [User access token](https://dev.vk.com/ru/api/access-token/authcode-flow-user) and [group access token](https://dev.vk.com/ru/api/access-token/community-token/in-community-settings) are necessary for correct working
 
+Partially implemented VK ID authorization with PKCE flow
+
 ## License
 
 This project is released under the MIT License. This project uses the pre-trained InternVL2_5-4B, which is licensed under the MIT.

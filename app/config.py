@@ -1,33 +1,43 @@
-import os, threading, secrets, base64, hashlib
+import os
+import threading
+import secrets
+import base64
+import hashlib
 from dotenv import load_dotenv
-from typing import Dict
+from typing import Dict, Tuple, Optional
 from vkbottle.bot import Bot
 from vkbottle import Keyboard, Text, KeyboardButtonColor, OpenLink
 from fastapi import FastAPI
 from fastapi.templating import Jinja2Templates
 
-
+# Load environment variables from .env file
 load_dotenv()
 
-# ImageNet Normalization
-IMAGENET_MEAN: tuple[float, float, float] = (0.485, 0.456, 0.406)
-IMAGENET_STD: tuple[float, float, float] = (0.229, 0.224, 0.225)
+# ImageNet normalization constants for preprocessing image input
+IMAGENET_MEAN: Tuple[float, float, float] = (0.485, 0.456, 0.406)
+IMAGENET_STD: Tuple[float, float, float] = (0.229, 0.224, 0.225)
 
-# AI-agent
+# Name of the AI model used for inference
 MODEL_NAME: str = "OpenGVLab/InternVL2_5-4B"
 
-# Client ID of app, neccessary for authorization
-VK_CLIENT_ID: str | None = os.getenv("CLIENT_ID")
+# VK App client ID, used for OAuth2 authentication
+VK_CLIENT_ID: Optional[str] = os.getenv("CLIENT_ID")
 
-# Bot token for working in bot group
-TOKEN: str | None = os.getenv("BOT_TOKEN")
+# VK group bot token for authenticating with VK API
+TOKEN: Optional[str] = os.getenv("BOT_TOKEN")
 
-# OAuth2 redirect URI
+# Redirect URI for OAuth2 flow (must match VK app settings)
 REDIRECT_URI: str = "https://trendgenbot.ru/callback"
 
 
-# PKCE code verifier/challenge generation
-def generate_code_pair():
+def generate_code_pair() -> Tuple[str, str]:
+    """
+    Generate a PKCE code verifier and its corresponding challenge
+    according to the S256 transformation.
+
+    Returns:
+        tuple: A tuple containing (code_verifier, code_challenge)
+    """
     verifier = base64.urlsafe_b64encode(os.urandom(40)).decode("utf-8").rstrip("=")
     challenge = base64.urlsafe_b64encode(
         hashlib.sha256(verifier.encode()).digest()
@@ -35,11 +45,14 @@ def generate_code_pair():
     return verifier, challenge
 
 
+# Generate PKCE code pair (used for secure OAuth2 authorization)
 CODE_VERIFIER, CODE_CHALLENGE = generate_code_pair()
-STATE = secrets.token_urlsafe(16)
 
-# AUTH URL — VK ID PKCE Flow
-AUTH_URL = (
+# Unique state string for CSRF protection in the auth flow
+STATE: str = secrets.token_urlsafe(16)
+
+# VK OAuth2 Authorization URL (VK ID PKCE Flow)
+AUTH_URL: str = (
     f"https://id.vk.com/authorize?"
     f"client_id={VK_CLIENT_ID}"
     f"&redirect_uri={REDIRECT_URI}"
@@ -50,30 +63,31 @@ AUTH_URL = (
     f"&state={STATE}"
 )
 
-# Blocking shared data for multithreading
+# Thread lock to ensure thread-safe access to shared data
 lock = threading.Lock()
 
-# user_id: { "token": str, "period": str }
+# Stores per-user session data, indexed by VK user_id (int)
+# Example: { 123456: {"access_token": "...", "refresh_token": "..."} }
 USER_STATES: Dict[int, Dict[str, str]] = {}
 
-# Initializing bot to split the app structure
+# Initialize VK bot without event loop wrapping (handled externally)
 bot = Bot(token=TOKEN, loop_wrapper=None)
 
-# Keyboard for chat
-main_keyboard = (
-        Keyboard(inline=False)
-        .add(OpenLink(label="Авторизация", link=AUTH_URL), color=KeyboardButtonColor.POSITIVE)
-        .row()
-        .add(Text("Анализ всех постов", payload={"cmd": "analyze"}), color=KeyboardButtonColor.PRIMARY)
-        .row()
-        .add(Text("Анализ постов за неделю", payload={"cmd": "analyze_week"}), color=KeyboardButtonColor.PRIMARY)
-        .add(Text("Анализ постов за месяц", payload={"cmd": "analyze_month"}), color=KeyboardButtonColor.PRIMARY)
-        .row()
-        .add(Text("Помощь", payload={"cmd": "help"}), color=KeyboardButtonColor.SECONDARY)
-    )
+# Inline keyboard used in chat interactions
+main_keyboard: Keyboard = (
+    Keyboard(inline=False)
+    .add(OpenLink(label="Авторизация", link=AUTH_URL), color=KeyboardButtonColor.POSITIVE)
+    .row()
+    .add(Text("Анализ всех постов", payload={"cmd": "analyze"}), color=KeyboardButtonColor.PRIMARY)
+    .row()
+    .add(Text("Анализ постов за неделю", payload={"cmd": "analyze_week"}), color=KeyboardButtonColor.PRIMARY)
+    .add(Text("Анализ постов за месяц", payload={"cmd": "analyze_month"}), color=KeyboardButtonColor.PRIMARY)
+    .row()
+    .add(Text("Помощь", payload={"cmd": "help"}), color=KeyboardButtonColor.SECONDARY)
+)
 
-# Initializing FastAPI backend server
-app = FastAPI()
+# Initialize FastAPI app instance
+app: FastAPI = FastAPI()
 
-# Setting up Jinja2 templating for HTML rendering
-templates = Jinja2Templates(directory="templates")
+# Setup for rendering HTML templates with Jinja2
+templates: Jinja2Templates = Jinja2Templates(directory="templates")
