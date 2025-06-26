@@ -19,10 +19,10 @@ def home() -> Dict[str, str]:
 
 @app.get("/callback", response_class=HTMLResponse)
 async def callback(
-    request: Request, 
-    code: Optional[str] = None, 
-    state: Optional[str] = None
-) -> HTMLResponse | Dict[str, str]:
+    request,
+    code=None,
+    state=None
+):
     """
     OAuth2 callback endpoint for VK ID using PKCE flow.
 

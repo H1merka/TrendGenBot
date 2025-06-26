@@ -1,20 +1,16 @@
 import threading
-import handlers  # Registers VK bot message handlers
+import api_server  # Ensure FastAPI routes are registered
+import handlers    # Register VK bot message handlers
 from config import bot
 from utils import run_api
 
 
 def main() -> None:
-    """
-    Entry point of the application.
+    # Start FastAPI in background
+    api_thread = threading.Thread(target=run_api, daemon=True)
+    api_thread.start()
 
-    Runs the FastAPI backend server in a separate thread and starts the VK bot's event loop.
-    """
-    # Start FastAPI app in a background thread (daemonized)
-    bot_thread: threading.Thread = threading.Thread(target=run_api, daemon=True)
-    bot_thread.start()
-
-    # Start VK bot event loop (blocking call)
+    # Start VK bot loop
     bot.run_forever()
 
 
